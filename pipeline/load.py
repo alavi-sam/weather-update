@@ -13,20 +13,40 @@ os.makedirs(RAW_DATA_DIR, exist_ok=True)
 
 
 def load_raw_data(data_list, ingestion_time: datetime):
-    partition_dir = os.path.join(RAW_DATA_DIR, f"date={ingestion_time.date}", f"hour={ingestion_time.hour}")
+    partition_dir = os.path.join(RAW_DATA_DIR, f"date={ingestion_time.date()}", f"hour={ingestion_time.hour}")
     os.makedirs(partition_dir, exist_ok=True)
     file_path = os.path.join(partition_dir, 'weather.json')
     if os.path.exists(file_path):
-        weather_json = json.load(file_path)
+        logger.info('JSON exist appending new data!')
+        with open(file_path, 'r', encoding='utf-8') as f:
+            weather_json = json.load(f)
         if isinstance(weather_json, list):
-            weather_json.extend(data_list)
+            for item in data_list:
+                filtered_item = {
+                    'latitude': item['latitude'],
+                    'longitude': item['longitude'],
+                    'time': item['current']['time']
+                }
+                filtered_weather = [
+                    {
+                        'latitude': obj['latitude'],
+                        'longitude': obj['longitude'],
+                        'time': obj['current']['time']
+                    } for obj in weather_json
+                ]
+                if filtered_item not in filtered_weather:
+                    logger.info("JSON file update with new data.")
+                    weather_json.append(item)
+                else:
+                    logger.info('Duplicate JSON file!')
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(weather_json, f)
         else:
             logger.warning('Incompatible JSON file!')
     else:
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(weather_json, f)
+            json.dump(data_list, f)
+        logger.info("JSON file created for weather.")
 
 
 
