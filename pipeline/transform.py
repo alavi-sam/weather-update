@@ -82,7 +82,6 @@ def extract_json(weather_list: list):
 def create_dataframe(data_obj: List[Weather]):
     df = pl.DataFrame(schema=POLARS_SCHEMA)
     for location in data_obj:
-        print(location)
         try:
             new_df = pl.DataFrame(asdict(location), schema=POLARS_SCHEMA)
             logger.info(f'Converted to polars at lat {location.latitude} long {location.longitude}')

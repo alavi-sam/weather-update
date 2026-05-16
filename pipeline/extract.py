@@ -22,7 +22,7 @@ async def fetch_weather(lat=43.78, long=-79.41):
             return data
         
         except httpx.HTTPStatusError as e:
-            logger.exception(f"failed extraction with error code {e.response.status_code} for lat {lat} long {long}, error {e} -- {datetime.now().strftime('%Y-%m-%d %H:%M-%S')}")
+            logger.exception(f"failed extraction with error code {e.response.status_code} for lat {lat} long {long}, error {e}")
 
         except (httpx.RequestError, httpx.TimeoutException) as e:
             logger.exception(f"Network error for lat {lat} long {long} on attempt {retry}: {e}")
@@ -38,4 +38,4 @@ async def fetch_multiple_locations(locations: list[tuple]):
         response = await fetch_weather(location[0], location[1])
         weather_list.append(response)
     logger.info('Fetched all locations.')
-    return weather_list
+    return weather_list, datetime.now()
