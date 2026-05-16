@@ -24,16 +24,18 @@ async def fetch_weather(lat=43.78, long=-79.41):
         
         except httpx.HTTPStatusError as e:
             logger.exception(f"failed extraction with error code {e.response.status_code} for lat {lat} long {long}, error {e}")
+            await asyncio.sleep(2 ** retry)
 
-        except (httpx.RequestError, httpx.TimeoutException) as e:
+        except httpx.RequestError as e:
             logger.exception(f"Network error for lat {lat} long {long} on attempt {retry}: {e}")
+            await asyncio.sleep(2 ** retry)
 
-
-    return response
+    logger.error(f"All retries exhausted for lat {lat} long {long}")
+    return None
 
 
 
 async def fetch_multiple_locations(locations: list[tuple]):
     weather_list = await asyncio.gather(*[fetch_weather(lat, lon) for lat, lon in locations])
-    logger.info('Fetched all locations.')
-    return weather_list, datetime.now()
+    results = [r for r in weather_list if r is not None]                                                         
+    return results, datetime.now()
