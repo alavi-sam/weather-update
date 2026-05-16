@@ -1,4 +1,5 @@
 import httpx
+import asyncio
 import logging
 from datetime import datetime
 from config import MAX_RETIES, REQUEST_TIMEOUT
@@ -33,9 +34,6 @@ async def fetch_weather(lat=43.78, long=-79.41):
 
 
 async def fetch_multiple_locations(locations: list[tuple]):
-    weather_list = []
-    for location in locations:
-        response = await fetch_weather(location[0], location[1])
-        weather_list.append(response)
+    weather_list = await asyncio.gather(*[fetch_weather(lat, lon) for lat, lon in locations])
     logger.info('Fetched all locations.')
     return weather_list, datetime.now()
