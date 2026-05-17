@@ -23,7 +23,6 @@ services:
         condition: service_healthy
     volumes:
       - ./data:/app/data
-      - ./pipeline.log:/app/pipeline.log
 
 volumes:
   postgres_data:
