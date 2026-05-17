@@ -1,6 +1,6 @@
 # Weather Update Pipeline
 
-An asynchronous ETL pipeline that fetches real-time weather data for multiple cities on a scheduled interval and stores it locally in both raw JSON and processed Parquet formats.
+An asynchronous ETL pipeline that fetches real-time weather data for multiple cities on a scheduled interval, storing it across three layers: raw JSON, processed Parquet, and a PostgreSQL database.
 
 ## Overview
 
@@ -20,10 +20,11 @@ The pipeline runs every 15 minutes and collects current weather conditions from 
 ```
 main.py
 └── run_pipeline()
-    ├── extract.py  → fetch_multiple_locations()   # async HTTP via httpx
-    ├── load.py     → load_raw_data()               # save raw JSON
+    ├── extract.py   → fetch_multiple_locations()          # concurrent async HTTP via httpx
+    ├── load.py      → load_raw_data()                     # bronze: raw JSON
     ├── transform.py → extract_json(), create_dataframe()  # parse + Polars DataFrame
-    └── load.py     → load_parquet()                # save processed Parquet
+    ├── load.py      → load_parquet()                      # silver: processed Parquet
+    └── load.py      → insert_db()                         # gold: PostgreSQL
 ```
 
 ### Data fields collected
@@ -44,9 +45,14 @@ data/
             └── weather.parquet    # typed Polars DataFrame, deduplicated
 ```
 
-Both raw and processed data are partitioned by date and hour. Duplicate records (same latitude, longitude, time) are detected and skipped on append.
+Both raw and processed data are partitioned by date and hour. The PostgreSQL gold layer stores normalized data across two tables:
+
+- **`geo_table`** — unique locations (latitude, longitude, timezone)
+- **`weather_measures`** — weather readings linked to a location via foreign key
 
 ## Setup
+
+### Local
 
 **Requirements:** Python 3.13+
 
@@ -56,13 +62,44 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Usage
+Copy `.env.example` to `.env` and fill in your database credentials:
+
+```
+DB_NAME=weather_db
+DB_USER=postgres
+DB_PASS=yourpassword
+DB_PORT=5432
+DB_HOST=localhost
+```
 
 ```bash
 python main.py
 ```
 
-The pipeline runs an initial fetch immediately on startup, then continues on a `0, 15, 30, 45` minute cron schedule. Logs are written to both the terminal and `pipeline.log`.
+### Docker
+
+```bash
+docker compose up -d
+```
+
+This starts both the pipeline and a PostgreSQL container. The database schema is applied automatically on first run. Logs and data are persisted via volumes.
+
+### Deploying to a VPS
+
+```bash
+# install Docker
+sudo apt install docker.io docker-compose-plugin -y
+
+# clone and configure
+git clone <your-repo> && cd weather-update
+cp .env.example .env  # fill in real values
+
+# run
+docker compose up -d
+
+# follow logs
+docker compose logs -f pipeline
+```
 
 ## Configuration
 
@@ -73,6 +110,8 @@ The pipeline runs an initial fetch immediately on startup, then continues on a `
 | `MAX_RETIES` | `5` | HTTP retry attempts per location |
 | `REQUEST_TIMEOUT` | `30` | Seconds before a request times out |
 
+Retries use exponential backoff (1s, 2s, 4s, 8s...).
+
 ## Key Dependencies
 
 | Package | Purpose |
@@ -80,4 +119,5 @@ The pipeline runs an initial fetch immediately on startup, then continues on a `
 | `httpx` | Async HTTP client for API requests |
 | `APScheduler` | Cron-based job scheduling |
 | `polars` | Fast DataFrame processing and Parquet I/O |
-| `pandas` | General data utilities |
+| `sqlalchemy` | PostgreSQL connection and query execution |
+| `psycopg2` | PostgreSQL driver |
