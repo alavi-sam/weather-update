@@ -2,6 +2,8 @@ import polars as pl
 import os
 import logging
 from datetime import datetime
+from db.connection import engine
+from sqlalchemy import text
 import json
 
 logger = logging.getLogger(__name__)
@@ -67,6 +69,45 @@ def load_parquet(df):
 
     print(final_df)
     final_df.write_parquet(partition_path)
+    return partition_path
 
 
 
+def read_parquet(file_path):
+    df = pl.read_parquet(file_path)
+    return df
+
+
+def insert_db(df: pl.DataFrame):
+    try:
+        with engine.connect() as conn:
+            geo_ids = {}
+            for row in df.select(["timezone", "latitude", "longitude"]).to_dicts():
+                result = conn.execute(text("""
+                    INSERT INTO geo_table (timezone, latitude, longitude)
+                    VALUES (:timezone, :latitude, :longitude)
+                    ON CONFLICT (latitude, longitude) DO UPDATE SET timezone = EXCLUDED.timezone
+                    RETURNING id, latitude, longitude
+                """), row)
+                r = result.fetchone()
+                geo_ids[(r.latitude, r.longitude)] = r.id
+
+            measure_rows = [
+                {**row, 'geo_id': geo_ids[(row['latitude'], row['longitude'])]}
+                for row in df.to_dicts()
+            ]
+
+            conn.execute(text("""
+                INSERT INTO weather_measures
+                    (temperature, humidity, feels_like, is_day, precipitation,
+                     cloud_cover, wind_speed, weather_code, updated_at, geo_id)
+                VALUES
+                    (:temperature, :humidity, :feels_like, :is_day, :precipitation,
+                     :cloud_cover, :wind_speed, :weather_code, :time, :geo_id)
+                ON CONFLICT (geo_id, updated_at) DO NOTHING
+            """), measure_rows)
+
+            conn.commit()
+            logger.info("Database insertion success!")
+    except Exception as e:
+        logger.error(f"Could not insert items to database. Error: {e}")

@@ -1,7 +1,6 @@
 from pipeline.extract import fetch_multiple_locations
 from pipeline.transform import extract_json, create_dataframe
-from pipeline.load import load_parquet, load_raw_data
-from apscheduler.schedulers.background import BackgroundScheduler
+from pipeline.load import load_parquet, load_raw_data, read_parquet, insert_db
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -29,7 +28,9 @@ async def run_pipeline(locations: list[tuple]):
         load_raw_data(response, ingestion_time)
         weather_obj = extract_json(response)
         df = create_dataframe(weather_obj)
-        load_parquet(df)
+        path = load_parquet(df)
+        df_parquet = read_parquet(path)
+        insert_db(df_parquet)
         logger.info(f"── Pipeline run complete: {df.shape[0]} rows written ──")
     except Exception as e:
         logger.exception(f"Pipeline run failed: {e}")
