@@ -91,7 +91,7 @@ This starts both the pipeline and a PostgreSQL container. The database schema is
 sudo apt install docker.io docker-compose-plugin -y
 
 # clone and configure
-git clone <your-repo> && cd weather-update
+git clone [Repo-URL](https://github.com/alavi-sam/weather-update) && cd weather-update
 cp .env.example .env  # fill in real values
 
 # run
